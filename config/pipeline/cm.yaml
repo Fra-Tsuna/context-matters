@@ -1,0 +1,9 @@
+_target_: src.context_matters.pipelines.cm_pipeline.ContextMattersPipeline
+
+# CM pipeline args
+generate_domain:       True
+ground_in_sg:          False
+determine_possibility: False
+prevent_impossibility: False
+workflow_iterations:   4
+pddl_gen_iterations:   4
