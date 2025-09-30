@@ -6,6 +6,7 @@ defaults:
 base_path: ${hydra:runtime.cwd}
 data_path: ${base_path}/dataset
 res_path: ${base_path}/results
+metrics_res_path: ${base_path}/metrics_results
 
 splits:
   - dining_setup

@@ -2,9 +2,7 @@ import csv
 import os
 import time
 from pathlib import Path
-from typing import Optional
 import json
-import sys
 
 from src.context_matters.pipelines.base_pipeline import BasePipeline
 from src.context_matters.logger_cfg import logger
@@ -37,17 +35,13 @@ class LLMAsPlannerPipeline(BasePipeline):
 
     def _initialize_csv(self, csv_filepath: str):
         """Initializes the results CSV file with a header relevant to the delta_pipeline.csv."""
-        
-        # This header is tailored for a single-shot LLM planner.
-        # It removes all the subgoal and decomposition metrics from the original delta_pipeline.py
         header = [
-            # Identifiers
             "Task",
             "Scene",
             "Problem",
             "Total LLM Time",
             "Planning Successful", 
-            "Grounding Successful"
+            "Grounding Successful",
             "Plan Length",
             "Failure stage", 
             "Failure Reason"
@@ -59,10 +53,15 @@ class LLMAsPlannerPipeline(BasePipeline):
 
     def _serialize_domain_knowledge(self, knowledge_list: list | dict, actions: bool = False) -> list[str]:
         """
-        Serialize domain objects or actions into a single string, wrapped inside a one-element list.
-        This function is robust and handles two possible formats for knowledge_list:
-        1. A list of dictionaries (standard format).
-        2. A dictionary of dictionaries (will be converted to the standard format).
+        Serializes domain knowledge into a formatted string list.
+
+        Args:
+            knowledge_list (list | dict): Knowledge entries as a list or dict.
+            actions (bool, optional): If True, formats as actions with arguments; 
+                                      otherwise by type and description.
+
+        Returns:
+            list[str]: A single-element list containing the formatted string.
         """
         processed_list = []
 
@@ -75,9 +74,7 @@ class LLMAsPlannerPipeline(BasePipeline):
         elif isinstance(knowledge_list, list):
             processed_list = knowledge_list
 
-        # --- FIX IS HERE ---
-        prompt_lines = [] # Initialize as an empty list
-        # ------------------
+        prompt_lines = [] 
 
         for i, item in enumerate(processed_list, start=1):
             if not isinstance(item, dict):
@@ -98,8 +95,15 @@ class LLMAsPlannerPipeline(BasePipeline):
 
     def _parse_and_save_plan(self, llm_response_str: str, results_problem_dir: str):
         """
-        Parses the LLM's string response to extract, clean, and save the plan.
-        This logic is adapted from the original DELTA baseline's llm_utils.
+        Extracts a plan from an LLM response, cleans it, saves it to a file, 
+        and returns it as a list.
+
+        Args:
+            llm_response_str (str): Raw response string from the LLM containing a JSON object.
+            results_problem_dir (str): Directory path where the plan file will be saved.
+
+        Returns:
+            tuple[list[str], int]: A list of plan steps and the number of steps.
         """
         plan_filepath = os.path.join(results_problem_dir, "plan.txt")
 
@@ -131,8 +135,6 @@ class LLMAsPlannerPipeline(BasePipeline):
 
         with open(plan_filepath, "w") as f:
             f.write("\n".join(plan_list))
-
-        #print(f"Saved plan with {plan_length} steps to {plan_filepath}")
             
         return plan_list, plan_length
 
@@ -162,12 +164,6 @@ class LLMAsPlannerPipeline(BasePipeline):
         with open(goal_qry_path, "r") as f:
             agent_starting_position = f.read().strip()  
 
-        """
-        scene_graph_file_path_jason_path = scene_graph_file_path.with_suffix('.json')
-        with open(scene_graph_file_path_jason_path, "r") as f: 
-            scene_qry = json.load(f)
-        """
-
         _, scene_exp, _, domain_data_exp = load_example_data()
 
         scene_qry = read_graph_from_path(scene_graph_file_path)
@@ -179,7 +175,6 @@ class LLMAsPlannerPipeline(BasePipeline):
         add_act_exp = domain_data_exp.get("add_act")
         add_obj_exp = domain_data_exp.get("add_obj") 
 
-        #goal_qry = domain_file["problems"][str(problem_id)]["goal"]
         with open(goal_qry_path, "r") as f:
             goal_qry = f.read().strip()
 
@@ -214,9 +209,13 @@ class LLMAsPlannerPipeline(BasePipeline):
 
         llm_time = time.time() - start
 
+        planning_successful = False
+        plan_length = 0
+        failure_stage = "N/A"
+        failure_reason = "N/A"
 
         try:
-            plan_list, plan_length = self._parse_and_save_plan(llm_response_str, results_problem_dir)
+            _, plan_length = self._parse_and_save_plan(llm_response_str, results_problem_dir)
             planning_successful = True
             logger.info(f"Successfully parsed plan with {plan_length} steps.")
         
@@ -238,36 +237,15 @@ class LLMAsPlannerPipeline(BasePipeline):
         #write to csv:
         with open(csv_filepath, mode = "a", newline = '') as f:
             writer = csv.writer(f, delimiter = '|')
-            if planning_successful:
-                writer.writerow([
-                    task_name,
-                    scene_name,
-                    problem_id,
-                    f"{llm_time:.2f}",
-                    planning_successful,
-                    "N/A", # Grounding successful (TODO)
-                    plan_length,
-                    "N/A", # Failure stage
-                    "N/A"  # Failure reason
-                ])
-            else:
-                writer.writerow([
-                    task_name,
-                    scene_name,
-                    problem_id,
-                    f"{llm_time:.2f}",
-                    planning_successful,
-                    "N/A", # Grounding successful (TODO)
-                    0, # Plan length
-                    failure_stage,
-                    failure_reason
-                ])
-
-
-
-        # TODO Validation and grounding as in delta_pipeline.py
-
-        # Append per-episode logging to csv or internal structures as needed
-        #logger.info("LLM-As-Planner episode %s ran (placeholder). LLM time: %.2fs", e + 1, llm_time)
-
+            writer.writerow([
+                task_name,
+                scene_name,
+                problem_id,
+                f"{llm_time:.2f}",
+                planning_successful,
+                "N/A" if planning_successful else False,
+                plan_length,
+                failure_stage,
+                failure_reason
+            ])
         # End for episodes
