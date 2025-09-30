@@ -46,7 +46,7 @@ cd third-party/VAL/build/linux64/Release
 make
 ```
 # Generate dataset
-1. Download the data from the `medium split` original [3DSG repo](https://github.com/StanfordVL/3DSceneGraph)
+1. Download both the "medium" and "tiny" data splits from the original [3DSG repo](https://github.com/StanfordVL/3DSceneGraph)
 2. Move into `dataset/3dscenegraph` the following .npz files: `Allensville`, `Kemblesville`, `Klickitat`, `Lakeville`, `Leonardo`, `Lindenwood`, `Markleeville`, `Marstons`, `Parole`, `Shelbiana`
 3. Make sure the virtual environment is activated, then run 
 ```
@@ -69,10 +69,10 @@ with options `cm`, `delta`, `sayplan` and `llm_planner`. This will execute the c
 To change parameters, you can either edit the corresponding config file directly, or override them in the terminal, e.g. `python3 main.py pipeline=<name> pipeline.max_debug_attemps=3`
 
 Key parameters are:
-- `generate_domain`:, 
-- `ground_in_sg`:,
-- `workflow_iterations`:,
-- `pddl_gen_iterations`:,
+- `generate_domain`: Controls whether the pipeline uses an LLM to automatically generates a PDDL domain or uses a pre-existing one
+- `ground_in_sg`: Controls whether the pipeline performs a validation step to ensure the generated plan is physically possible in the world described by the scene graph
+- `workflow_iterations`: Sets the number of self-correction attempts for the entire problem-solving workflow if the initial plan is invalid
+- `pddl_gen_iterations`: Specifies the number of retry attempts for the LLM to generate a syntactically correct PDDL domain file
 
 # Metrics
 After running the pipelines, the results for each split will be stored in CSV files.
