@@ -46,7 +46,7 @@ cd third-party/VAL/build/linux64/Release
 make
 ```
 # Generate dataset
-1. Download the data from the `medium split` original [3DSG repo](https://github.com/StanfordVL/3DSceneGraph)
+1. Download both the "medium" and "tiny" data splits from the original [3DSG repo](https://github.com/StanfordVL/3DSceneGraph)
 2. Move into `dataset/3dscenegraph` the following .npz files: `Allensville`, `Kemblesville`, `Klickitat`, `Lakeville`, `Leonardo`, `Lindenwood`, `Markleeville`, `Marstons`, `Parole`, `Shelbiana`
 3. Make sure the virtual environment is activated, then run 
 ```
@@ -56,7 +56,7 @@ python3 dataset/dataset_creation.py
 
 # Run
 
-1. Export the your OpenAI key
+1. Export your OpenAI key
 ```
 export OPENAI_API_KEY=<your OpenAI API key>
 ```
@@ -69,10 +69,10 @@ with options `cm`, `delta`, `sayplan` and `llm_planner`. This will execute the c
 To change parameters, you can either edit the corresponding config file directly, or override them in the terminal, e.g. `python3 main.py pipeline=<name> pipeline.max_debug_attemps=3`
 
 Key parameters are:
-- `generate_domain`:, 
-- `ground_in_sg`:,
-- `workflow_iterations`:,
-- `pddl_gen_iterations`:,
+- `generate_domain`: Controls whether the pipeline uses an LLM to automatically generates a PDDL domain or uses a pre-existing one
+- `ground_in_sg`: Controls whether the pipeline performs a validation step to ensure the generated plan is physically possible in the world described by the scene graph
+- `workflow_iterations`: Sets the number of self-correction attempts for the entire problem-solving workflow if the initial plan is invalid
+- `pddl_gen_iterations`: Specifies the number of retry attempts for the LLM to generate a syntactically correct PDDL domain file
 
 # Metrics
 After running the pipelines, the results for each split will be stored in CSV files.
@@ -82,6 +82,14 @@ python3 aggregate_results.py
 ```
 
 This will generate a detailed metrics JSON file inside the `metrics_res_path` specified in `config.yaml`.
+
+Some key performance metrics are:
+- `overall_success_rate`: The percentage of tasks successfully solved with a valid and executable plan
+- `grounding_success_rate`: The percentage of generated plans that were realistic and executable when checked against the environment
+- `avg_plan_length_successful`: The average number of steps in a successful plan, measuring its efficiency
+- `avg_no_nodes`: The average number of states explored by the planner, indicating its search effort
+- `avg_no_relaxations`: The average number of times the problem was simplified to find a high-level plan
+
 
 To plot and visualize the aggregated results, run:
 ```
