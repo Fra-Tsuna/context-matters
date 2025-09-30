@@ -56,7 +56,7 @@ python3 dataset/dataset_creation.py
 
 # Run
 
-1. Export the your OpenAI key
+1. Export your OpenAI key
 ```
 export OPENAI_API_KEY=<your OpenAI API key>
 ```
