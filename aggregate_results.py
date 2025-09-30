@@ -132,16 +132,6 @@ class PipelineMetricsCalculator:
 
         df['refinement_list'] = df['Refinements per iteration'].apply(self.parse_refinement_string_to_list)
 
-        max_relaxations = 4
-        refinements_per_level = {}
-        for i in range(1, max_relaxations + 1):
-            # The refinements needed AFTER the i-th relaxation are at index i of the list
-            # .str.get(i) safely handles lists of varying lengths by returning NaN if the index is out of bounds
-            refinements_at_level_i = df['refinement_list'].str.get(i)
-            
-            # The mean correctly ignores NaN values, giving us the conditional average
-            avg_refinements_at_level_i = self.safe_numeric_mean(refinements_at_level_i)
-            refinements_per_level[f'Relaxation {i}'] = round(avg_refinements_at_level_i, 2)
         
         metrics = {
             'total_tasks': total_tasks,
@@ -152,7 +142,6 @@ class PipelineMetricsCalculator:
             'avg_no_relaxations': round(avg_no_relaxations, 2),
             'avg_no_refinements': round(avg_no_refinements, 2),
             'avg_refinements_per_relaxation': round(avg_refinements_per_relaxation, 2),
-            'avg_refinements_per_level': refinements_per_level, 
             'avg_no_nodes': round(avg_no_nodes, 2),
             'avg_inference_time': round(avg_inference_time, 2),
             "avg_total_llm_time": round(avg_total_llm_time, 2),
@@ -420,8 +409,6 @@ class PipelineMetricsCalculator:
   
 @hydra.main(config_path = "config", config_name = "config", version_base = None)
 def main(cfg: DictConfig):
-    import sys
-
     results_dir = cfg.res_path
     metrics_results_dir = cfg.metrics_res_path
 
