@@ -1,19 +1,9 @@
 #!/usr/bin/env python3
-"""
-Script to generate plots from detailed_metrics.json using matplotlib.
-
-Outputs:
-- pipeline_flow_diagram.png
-- detailed_metrics_chart.png
-- success_rates_chart.png (planning %, grounding %, and total tasks)
-"""
-
 import json
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import numpy as np
 from pathlib import Path
-import argparse
 import sys
 import hydra
 from omegaconf import DictConfig

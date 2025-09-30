@@ -8,14 +8,12 @@ key performance metrics for comparison and plotting.
 import os
 import pandas as pd
 import json
-import argparse
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Any
 from pathlib import Path
 import numpy as np
 from collections import defaultdict
-
 from omegaconf import DictConfig
-import hydra, sys
+import hydra
 
 class PipelineMetricsCalculator:
     """Calculator for metrics across different pipeline types."""
@@ -259,40 +257,22 @@ class PipelineMetricsCalculator:
         return metrics
     
     def find_value_anywhere(self, data, target_key, default_value=None):
-        """
-        Funzione universale che trova qualsiasi chiave in qualsiasi struttura JSON, 
-        non importa quanto sia profonda o complessa.
-        
-        Args:
-            data: La struttura dati da cercare (dict, list, o qualsiasi tipo)
-            target_key (str): La chiave da cercare (es. 'num_node_expansions')
-            default_value: Valore da restituire se non trovato (default: None)
-            
-        Returns:
-            any: Il primo valore trovato per la chiave, o default_value se non trovato
-        """
-        
         def _search(obj):
-            # Se è un dizionario
             if isinstance(obj, dict):
-                # Controlla se la chiave è direttamente qui
                 if target_key in obj:
                     return obj[target_key]
                 
-                # Cerca ricorsivamente in tutti i valori
                 for value in obj.values():
                     result = _search(value)
                     if result is not None:
                         return result
             
-            # Se è una lista
             elif isinstance(obj, list):
                 for item in obj:
                     result = _search(item)
                     if result is not None:
                         return result
             
-            # Se è qualsiasi altro tipo (int, str, bool, etc.), non può contenere chiavi
             return None
         
         result = _search(data)
