@@ -75,4 +75,17 @@ Key parameters are:
 - `pddl_gen_iterations`:,
 
 # Metrics
-...
+After running the pipelines, the results for each split will be stored in CSV files.
+To aggregate the results, run:
+```
+python3 aggregate_results.py
+```
+
+This will generate a detailed metrics JSON file inside the `metrics_res_path` specified in `config.yaml`.
+
+To plot and visualize the aggregated results, run:
+```
+python3 generate_plots.py
+```
+
+This will create plots inside the `metrics_res_path` and display both comparison and performance tables in the terminal
