@@ -8,6 +8,7 @@ from pddlgym.core import InvalidAction
 
 from .planner import run_planner_FD, execute_action, initialize_pddl_environment
 from src.context_matters.utils.graph import read_graph_from_path, get_verbose_scene_graph
+from src.context_matters.logger_cfg import logger
 
 def convert_JSON_to_verbose_SG(scene_graph):
     locations = {}
@@ -23,16 +24,13 @@ def convert_JSON_to_locations_dictionary(scene_graph):
     locations = {}
     location_names = {}
     
-    print(scene_graph)
-    print(type(scene_graph))
-
     if "room" in scene_graph.keys():
         for room_id, room_data in scene_graph["room"].items():
             location_names[str(room_id)] = room_data["scene_category"]+"_"+str(room_id)
         
         for obj_id, obj_data in scene_graph["object"].items():
             if str(obj_data["parent_room"]) not in location_names.keys():
-                print("Could not find location "+str(obj_data["parent_room"])+" for object "+obj_data["class_"]+"_"+str(obj_id))
+                logger.info("Could not find location "+str(obj_data["parent_room"])+" for object "+obj_data["class_"]+"_"+str(obj_id))
                 continue
             locations[obj_data["class_"]+"_"+str(obj_id)] = location_names[str(obj_data["parent_room"])]
     else:
@@ -66,20 +64,29 @@ def verify_subplan_groundability(pddlgym_environment, graph, locations_dictionar
     
         # Find the action arguments
         from_location, to_location = extract_locations_from_movement_action(move_action)
-        print(f"Moving from {from_location} to {to_location}")
+        logger.info(f"Moving from {from_location} to {to_location}")
 
         # Find the from_location of the current subplan
         if from_location not in graph.keys():
-            print(f"Error: Location {from_location} not found in scene graph")
+            logger.info(f"Error: Location {from_location} not found in scene graph")
             return 0, f"Location {from_location} not found in scene graph"
         
         #Find the to_location of the current subplan
         if to_location not in graph.keys():
-            print(f"Error: Location {to_location} not found in scene graph")
+            logger.info(f"Error: Location {to_location} not found in scene graph")
             return 0, f"Location {to_location} not found in scene graph"
         
         # Perform a PDDL gym step to move the robot
-        pddlgym_environment, obs = execute_action(pddlgym_environment, move_action)
+        try:
+            pddlgym_environment, obs = execute_action(pddlgym_environment, move_action)
+            logger.info("Verified action: "+str(move_action))
+            logger.info("New observation: "+str(obs))
+        except InvalidAction as e:
+            logger.info("Grounding failed for action "+str(move_action)+" because: '"+str(e)+"'")
+            return successful_actions, f"Grounding failed for action {str(move_action)} because: '{str(e)}'"
+        except Exception as e:
+            logger.info("Grounding failed for action "+str(move_action)+" because: '"+str(e)+"'")
+            return successful_actions, f"Grounding failed for action {str(move_action)} because: '{str(e)}'"
 
         # Update the locations_dictionary (useful if the robot was carrying something with him while moving)
         locations_dictionary, hallucinated_obj, hallucinated_loc = update_locations_dictionary(graph, locations_dictionary, obs)
@@ -95,10 +102,15 @@ def verify_subplan_groundability(pddlgym_environment, graph, locations_dictionar
 
         try:
             pddlgym_environment, obs = execute_action(pddlgym_environment, action)
+            logger.info("Verified action: "+str(action))
+            logger.info("New observation: "+str(obs))
         except InvalidAction as e:
-            print("Grounding failed for action "+action+" because: '"+str(e)+"'")
+            logger.info("Grounding failed for action "+action+" because: '"+str(e)+"'")
             return successful_actions, f"Grounding failed for action {action} because: '{str(e)}'"
-            
+        except Exception as e:
+            logger.info("Grounding failed for action "+action+" because: '"+str(e)+"'")
+            return successful_actions, f"Grounding failed for action {action} because: '{str(e)}'"
+        
         successful_actions += 1
 
     return successful_actions, ""
@@ -120,7 +132,6 @@ def extract_locations_from_movement_action(action):
 
     action_args = action.split("(")[1].split(",")
 
-    print(action)
     if ":" in action_args[1]:
         from_location = action_args[1].split(":")[0]
         to_location = action_args[2].split(":")[0]
@@ -240,14 +251,17 @@ def extract_parameters_from_action(action):
     if action is not str:
         action = str(action)
 
-    print(action.split(" "))
     action_args = action.split(" ")[1].split(",")
 
     parameters_raw = action_args[1:]
     
     parameters = []
     for parameter in parameters_raw:
-        (obj_name, obj_type) = parameter.split(":")
+        if ":" not in parameter:
+            obj_name = parameter.split(")")[0]
+            obj_type = "unknown"
+        else:
+            (obj_name, obj_type) = parameter.split(":")
         parameters.append((obj_name, obj_type))
 
     return parameters
@@ -290,8 +304,8 @@ def simpler_grounding(
 
 
     # Verify if objects in subplan are present in the scene graph
+    successful_actions = 0
     for subplan in subplans:
-        successful_actions = 0
 
         # Find the move action in the subplan
         move_action = subplan["move_action"]
@@ -299,16 +313,16 @@ def simpler_grounding(
         
             # Find the action arguments
             from_location, to_location = extract_locations_from_movement_action(move_action)
-            print(f"Moving from {from_location} to {to_location}")
+            logger.info(f"Moving from {from_location} to {to_location}")
 
             # Find the from_location of the current subplan
             if from_location not in graph.keys():
-                print(f"Error: Location {from_location} not found in scene graph")
+                logger.info(f"Error: Location {from_location} not found in scene graph")
                 return 0, f"Location {from_location} not found in scene graph"
             
             #Find the to_location of the current subplan
             if to_location not in graph.keys():
-                print(f"Error: Location {to_location} not found in scene graph")
+                logger.info(f"Error: Location {to_location} not found in scene graph")
                 return 0, f"Location {to_location} not found in scene graph"
 
             successful_actions += 1
@@ -319,12 +333,12 @@ def simpler_grounding(
 
             for param in action_parameters:
                 if param[0] not in locations_dictionary.keys():
-                    print("Grounding failed for action "+action+" because: '"+str(param[0])+" not found in the scene graph'")
+                    logger.info("Grounding failed for action "+action+" because: '"+str(param[0])+" not found in the scene graph'")
                     return successful_actions, f"Grounding failed for action "+action+" because: '"+str(param[0])+" not found in the scene graph'"
                 
                 successful_actions += 1
 
-        return successful_actions, ""
+    return successful_actions, ""
 
     
 
@@ -376,12 +390,12 @@ def verify_groundability_in_scene_graph(
     
     # Check that the initial robot location is specified in the PDDL problem
     if initial_PDDL_robot_location is None:
-        print(f"Grounding failed because the initial robot location is not specified in the PDDL problem")
+        logger.info(f"Grounding failed because the initial robot location is not specified in the PDDL problem")
         return 0, f"Grounding failed because the initial robot location is not specified in the PDDL problem"
     
     # Check that the PDDL problem contains the correct robot location
     if initial_PDDL_robot_location != initial_robot_location:
-        print(f"Grounding failed because the robot location in the PDDL problem is not the requested one (desired: {initial_robot_location}, found: {initial_PDDL_robot_location})")
+        logger.info(f"Grounding failed because the robot location in the PDDL problem is not the requested one (desired: {initial_robot_location}, found: {initial_PDDL_robot_location})")
         return 0, f"Grounding failed because the robot location in the PDDL problem is not the requested one (desired: {initial_robot_location}, found: {initial_PDDL_robot_location})"
 
     # Initialize the first empty subplan
@@ -410,7 +424,7 @@ def verify_groundability_in_scene_graph(
     for obj, loc in locations_dictionary.items():
         if "robot" in obj:
             if loc != initial_robot_location:
-                print("Grounding failed because initial robot location in the PDDL problem was different from the location in the knowledge graph.")
+                logger.info("Grounding failed because initial robot location in the PDDL problem was different from the location in the knowledge graph.")
                 return 0, f"Grounding failed because initial robot location in the PDDL problem was different from the location in the knowledge graph."
 
     # Check that all the objects in the initial PDDLgym state are present in the knowledge graph
@@ -421,12 +435,12 @@ def verify_groundability_in_scene_graph(
             var_components = str(variable).split(":")
             # In case variable is a room, check that it is in the values or in the keys of the location -> object dictionary
             if var_components[1] == location_type_str and str(var_components[0]) not in locations_dictionary.values() and str(var_components[0]) not in graph.keys():
-                print("Grounding failed because object "+str(var_components[0])+" was not found in the knowledge graph.")
+                logger.info("Grounding failed because object "+str(var_components[0])+" was not found in the knowledge graph.")
                 return 0, f"Grounding failed because object {str(var_components[0])} was not found in the knowledge graph."
             
             # In case variable is not a room, check that it is in the values of the location -> object dictionary
             if var_components[1] != location_type_str and str(var_components[0]) not in locations_dictionary.keys():
-                print("Grounding failed because object "+str(var_components[0])+" was not found in the knowledge graph.")
+                logger.info("Grounding failed because object "+str(var_components[0])+" was not found in the knowledge graph.")
                 return 0, f"Grounding failed because object {str(var_components[0])} was not found in the knowledge graph."
             
 
@@ -459,7 +473,7 @@ def verify_groundability_in_scene_graph(
     current_location = initial_robot_location
     for subplan in subplans:
         
-        print("Verifying subplan: "+str(subplan))
+        logger.info("Verifying subplan: "+str(subplan))
 
         if subplan["move_action"]:
             current_location = subplan["location"]
@@ -515,7 +529,7 @@ def translate_plan(input_file, output_file=None):
         with open(output_file, 'w') as file:
             file.write('\n'.join(translated_plan))
 
-    print(f"Plan successfully translated and written to {output_file}")
+    logger.info(f"Plan successfully translated and written to {output_file}")
 
     return translate_plan
 

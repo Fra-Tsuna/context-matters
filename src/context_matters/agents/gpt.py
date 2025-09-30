@@ -14,10 +14,8 @@ class GPTAgent(Agent):
                 "model": self.model,
                 "messages": messages
             }
-            if temperature is not None:
-                completion_args["temperature"] = temperature
-            if top_p is not None:
-                completion_args["top_p"] = top_p
+            completion_args["temperature"] = 0
+            completion_args["top_p"] = 1.0
 
             completion = self.client.chat.completions.create(**completion_args)
             return completion.choices[0].message.content

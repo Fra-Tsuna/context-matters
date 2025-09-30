@@ -79,7 +79,6 @@ def query(domain_path: str, problem_path: str, plan_file: str, print_plan: False
             print("Task plan: \n{}".format(plan))
         exit_code = 1
     else:
-        # TODO: error handling with exit code
         print(err_msg)
         if "Time limit reached" in err_msg or "Time limit reached" in str(output):
             exit_code = 3
@@ -158,7 +157,6 @@ def query_pddlgym(domain: str, p_idx: int = 0, max_time: float = 120):
         print("Found solution in {}s with cost {}".format(time, cost))
         exit_code = 1
     except Exception as err:
-        # TODO: error handling with exit code
         traceback.print_exc()
         print("ERROR: "+str(err))
         err_msg = str(err)
@@ -239,7 +237,6 @@ def query_pddlgym_decompose(domain: str, subgoal_pddl_list: list, save_path: str
             completed_sp += 1
             exit_code = 1
         except Exception as err:
-            # TODO: error handling with exit code
             err_msg = str(err)
             print(err_msg)
             if "Planning timed out" in err_msg:

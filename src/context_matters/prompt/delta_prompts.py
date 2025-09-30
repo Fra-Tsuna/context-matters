@@ -1,15 +1,14 @@
 # Adaptation of the DELTA Pipeline from the official code repository.
-# Original paper: Y. Liu et al. TODO, TODO
-# Paper link: TODO
-# Based on the official code implementation by Y. Liu et al. TODO(link)
+# Original paper: Liu, Yuchen, et al. "Delta: Decomposed efficient long-term robot task planning using large language models." 2025 IEEE International Conference on Robotics and Automation (ICRA). IEEE, 2025.
+# Paper link: https://delta-llm.github.io/
+# Based on the official code implementation by Y. Liu et al. https://github.com/boschresearch/DELTA
 
 import itertools
 import os
 from src.context_matters.utils.pddl import (
     get_pddl_domain_actions,
     get_pddl_domain_predicates,
-    get_pddl_domain_types,
-    export_subgoal_list
+    get_pddl_domain_types
 )
 
 
@@ -28,19 +27,9 @@ def nl_2_pddl_domain(domain_exp: str, domain_qry_name: str, add_obj_exp: str = N
         ", ".join(add_obj_exp)) if add_obj_exp is not None else ""
     info_add_act_exp = "and the following additional action(s): \n{}".format(
         "\n".join(add_act_exp)) if add_act_exp is not None else ""
-    #print(add_obj_qry)
-    #info_add_obj_qry = "there are the following new object type(s): {}.".format(
-    #    ", ".join(add_obj_qry)) if add_obj_qry
-    #  is not None else ""
-    # ADAPTED TO OUR DATASET FORMAT
-
-    #print(add_obj_qry)
-
-    #print(add_obj_qry)
-    #TODO: NOTICE, we added also the object type descriptions
+    
     info_add_obj_qry = "there are the following new object type(s): {}.".format(
         ", ".join(["\n" + str(obj['type']) + ": " + str(obj['description']) for obj in add_obj_qry])) if add_obj_qry is not None else ""
-    #print(add_act_qry)
     info_add_act_qry = "\nBesides the basic actions (move_to, pick, drop), there are the following additional action(s): \n{}".format(
         "\n".join(act['description'] for act in add_act_qry)) if add_act_qry is not None else ""
 
@@ -67,7 +56,7 @@ def nl_2_pddl_domain(domain_exp: str, domain_qry_name: str, add_obj_exp: str = N
 
 ################ Scene pruning prompt ################
 
-def nl_prune_item(items_exp: dict, items_qry: dict, goal_exp: str, goal_qry: str, item_keep_exp: list, domain_exp: str = None, domain_qry: str = None, delta_plus: bool = False):
+def nl_prune_item(items_exp: dict, items_qry: dict, goal_exp: str, goal_qry: str, item_keep_exp: list, domain_exp: str = None, domain_qry: str = None):
     act_exp, act_qry = None, None
     if domain_exp is not None:
         act_exp = "and the corresponding action knowledge\n{}".format(
@@ -87,10 +76,6 @@ def nl_prune_item(items_exp: dict, items_qry: dict, goal_exp: str, goal_qry: str
     and a new goal description: {goal_qry}, {act_qry}
     please provide a list of the relevent items from the new item list for accomplishing the new goal directly without further explanations, and keep the same data structure.
     """
-
-    #if delta_plus:
-    #    prompt += "\nWhen selecting the relevant items, remove items that are certainly not relevant for accomplishing the goal but think deeply about the items that might be relevant in the series of actions in the given PDDL domain with the given PDDL goal."
-
     return content, prompt
 
 
@@ -100,8 +85,7 @@ def nl_prune_item(items_exp: dict, items_qry: dict, goal_exp: str, goal_qry: str
 
 def sg_2_pddl_problem(domain_name_exp: str, domain_exp: str, problem_exp: str,
                       sg_exp: dict, sg_qry: dict, goal_exp: str, goal_qry: str,
-                      domain_qry: str, domain_name_qry: str, initial_robot_location: str,
-                      delta_plus: bool = False):
+                      domain_qry: str, domain_name_qry: str, initial_robot_location: str):
     content = "You are an excellent PDDL problem file generator. Given a scene graph representation of an environment, a PDDL domain file and a goal description, you can generate a PDDL problem file."
     prompt = f"""
     Here is an example of a scene graph in the form of a nested dictionary in Python:
@@ -128,26 +112,24 @@ def sg_2_pddl_problem(domain_name_exp: str, domain_exp: str, problem_exp: str,
     ```\n{get_pddl_domain_types(domain_qry)}\n{get_pddl_domain_predicates(domain_qry)}\n```
     Please provide a new problem file in PDDL with respect to the new scene graph and goal specification directly without further explanations. Please also keep the comments such as "; Begin goal", "; End goal" etc. in the problem file.
     """
-    if not delta_plus:
-        prompt += "\nThe goal should only consist of the previously defined predicates without any further keyword which not appear in the examples such as 'forall' etc."
+    prompt += "\nThe goal should only consist of the previously defined predicates without any further keyword which not appear in the examples such as 'forall' etc."
 
-    if delta_plus:
-        prompt += "\nHIERARCHICAL TYPING RULES:\n\nMake sure that the object type declarations CONFORM THE ACTION PARAMETERS i.e. object_1 is grabbable but action_2 requires a pickable object and object_1 should be run with action_2 then object_1 must be declared as pickable as well.\n"
-        prompt += "\n\nADDITIONAL GROUNDING IMPROVEMENT RULES\n\nMake sure that the objects in the generated PDDL problem have a correspondence in the scene graph."
-        
-        possible_objects = []
-        for room, items in sg_qry.items():
-            for item in items:
-                possible_objects.append(item)
+    prompt += "\nHIERARCHICAL TYPING RULES:\n\nMake sure that the object type declarations CONFORM THE ACTION PARAMETERS i.e. object_1 is grabbable but action_2 requires a pickable object and object_1 should be run with action_2 then object_1 must be declared as pickable as well.\n"
+    prompt += "\n\nADDITIONAL GROUNDING IMPROVEMENT RULES\n\nMake sure that the objects in the generated PDDL problem have a correspondence in the scene graph."
+    
+    possible_objects = []
+    for room, items in sg_qry.items():
+        for item in items:
+            possible_objects.append(item)
 
-        # Groundability improvement prompt
-        prompt += "The only objects allowed in the PDDL problem (:objects) section must appear in the following list:\n{}\n".format(possible_objects)
-        prompt += "IMPORTANT: NEVER change the name or syntax of the object names.\n"
+    # Groundability improvement prompt
+    prompt += "The only objects allowed in the PDDL problem (:objects) section must appear in the following list:\n{}\n".format(possible_objects)
+    prompt += "IMPORTANT: NEVER change the name or syntax of the object names.\n"
 
-        # Relaxation prompt
-        prompt += "\n\nADDITIONAL GOAL RELAXATION\n\nIf the goal cannot be accomplished with the given scene graph, translated into PDDL a RELAXED version of the goal by changing its complexity or the objects involved.\n"
-        prompt += "EXAMPLES:\n\n- COMPLEXITY RELAXATION: i.e. Find me an apple in the kitchen and then put it on the dining table -> Find me an apple in the kitchen and bring it to the living room\n"
-        prompt += "- OBJECT RELAXATION: i.e. Find me a red apple in the kitchen -> Find me a snack\n"
+    # Relaxation prompt
+    prompt += "\n\nADDITIONAL GOAL RELAXATION\n\nIf the goal cannot be accomplished with the given scene graph, translated into PDDL a RELAXED version of the goal by changing its complexity or the objects involved.\n"
+    prompt += "EXAMPLES:\n\n- COMPLEXITY RELAXATION: i.e. Find me an apple in the kitchen and then put it on the dining table -> Find me an apple in the kitchen and bring it to the living room\n"
+    prompt += "- OBJECT RELAXATION: i.e. Find me a red apple in the kitchen -> Find me a snack\n"
 
     return content, prompt
 

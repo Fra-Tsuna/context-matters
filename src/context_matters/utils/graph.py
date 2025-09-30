@@ -147,69 +147,11 @@ def get_verbose_scene_graph(graph: Dict, as_string: bool = True, include_descrip
     # Join into single paragraph
     return "\n".join(output)
 
-# Used in DELTA
-def extract_accessible_items_from_sg(sg: dict):
-    accessible_items = []
-    #print(sg)
-    #print(sg.keys())
-    for room_name, room_data in sg["rooms"].items():
-        if "assets" in room_data:
-            assets = room_data.get("assets", {})
-            for asset_name, asset_data in assets.items():
-                if asset_data.get("accessible", True):
-                    accessible_items_asset = []
-                    items = asset_data.get("items", {})
-                    for item_name, item_data in items.items():
-                        if item_data.get("accessible", True):
-                            accessible_items_asset.append(item_name)
-                    accessible_items.append(
-                        {"asset": asset_name, "items": accessible_items_asset})
-        else:
-            items = room_data.get("items", {})
-            for item_name, item_data in items.items():
-                if item_data.get("accessible", True):
-                    accessible_items.append(item_name)
-    return accessible_items
-
-# Used in DELTA (and in the original implementation of SayPlan)
 def prune_sg_with_item(sg: dict, item_keep: list, is_extracted_sg: bool = False):
-    pruned_sg = copy.deepcopy(sg)
-    #print(sg)
-    if is_extracted_sg:
-        rooms_dict = pruned_sg
-    else:
-        rooms_dict = pruned_sg["rooms"]
-
-    for room_name, room_data in rooms_dict.items():
-        pruned_items = {}
-        if "assets" in room_data and any("asset" in elem for elem in item_keep):
-            pruned_assets = {}
-            assets = room_data.get("assets", {})
-            for asset_name, asset_data in assets.items():
-                if any(asset_name in elem["asset"] for elem in item_keep):
-                    pruned_assets[asset_name] = {}
-                    asset_items = asset_data.get("items", {})
-                    for item_name, item_data in asset_items.items():
-                        if any(item_name in elem["items"] for elem in item_keep):
-                            pruned_assets[asset_name][item_name] = item_data
-                room_data["assets"] = pruned_assets
-        else:
-            room_items = room_data.get("items", {})
-            for item_name, item_data in room_items.items():
-                if item_name in item_keep:
-                    pruned_items[item_name] = item_data
-            room_data["items"] = pruned_items
-
-    return pruned_sg
-
-def prune_sg_with_item_OURS(sg: dict, item_keep: list, is_extracted_sg: bool = False):
     if is_extracted_sg:
         pruned_sg = copy.deepcopy(sg)
     else:
         pruned_sg = copy.deepcopy(sg["rooms"])
-
-    print("Original SG:", pruned_sg)
-    print("Items to keep:", item_keep)
 
     for room_name, room_items in pruned_sg.items():
         pruned_items = []
@@ -219,7 +161,6 @@ def prune_sg_with_item_OURS(sg: dict, item_keep: list, is_extracted_sg: bool = F
                 pruned_items.append(item_name)
         pruned_sg[room_name] = pruned_items
 
-    print("Pruned SG:", pruned_sg)
     return pruned_sg
 
 def export_obj_list(response: str, is_extracted_sg : bool = False):

@@ -695,19 +695,8 @@ def refine_problem(
     # ----------------------------------------------------------
     # Extract the new problem from LLM response
     # ----------------------------------------------------------
-    try:
-        new_problem = llm_response.split("<PROBLEM>")[1].split("</PROBLEM>")[0]
-    except (IndexError, ValueError):
-        # If the format is not as expected, fallback to entire response
-        llm_response = agent.llm_call(correction_system_prompt, correction_user_prompt)
-        _save_prompt_response(
-            prompt=correction_system_prompt + "\n\n" + correction_user_prompt,
-            response=llm_response,
-            prefix="problem_refinement",
-            suffix=str(workflow_iteration)+"_"+str(refinement_iteration),
-            output_dir=logs_dir
-        )
-        new_problem = llm_response.split("<PROBLEM>")[1].split("</PROBLEM>")[0]
+    new_problem = llm_response.split("<PROBLEM>")[1].split("</PROBLEM>")[0]
+
 
     # Cleanup new problem string
     new_problem = new_problem.replace("`", "").replace("pddl", "").replace("lisp", "")
@@ -740,4 +729,3 @@ def _save_prompt_response(prompt: str, response: str, output_dir: str, prefix: s
     response_file = os.path.join(output_dir, f"{base_name}_response.log")
     with open(response_file, "w") as f:
         f.write(json.dumps(response, indent=4))
-

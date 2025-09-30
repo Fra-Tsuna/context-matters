@@ -1,7 +1,6 @@
 import os
 import csv
 import time
-import traceback
 from pathlib import Path
 
 from .base_pipeline import BasePipeline
@@ -58,99 +57,64 @@ class ContextMattersPipeline(BasePipeline):
     def _run_and_log_pipeline(self, task_name, scene_name, problem_id, results_problem_dir,
                             domain_file_path, domain_description, scene_graph_file_path,
                             csv_filepath):
-        try:
-            # Run the pipeline
-            results = self._bidimensional_planning(
-                goal_file_path=os.path.join(results_problem_dir, "task.txt"),
-                initial_location_file_path=os.path.join(results_problem_dir, "init_loc.txt"),
-                scene_graph_file_path=scene_graph_file_path,
-                domain_file_path=domain_file_path,
-                results_dir=results_problem_dir,
-                domain_description=domain_description,
-            )
-            
-            (final_problem_file_path, final_plan_file_path, final_goal,
-                planning_successful, grounding_successful, task_possible,
-                possibility_explanation, n_relaxations, refinements_per_iteration,
-                goal_relaxations, domain_generation_time, problem_generation_time,
+        # Run the pipeline
+        results = self._bidimensional_planning(
+            goal_file_path=os.path.join(results_problem_dir, "task.txt"),
+            initial_location_file_path=os.path.join(results_problem_dir, "init_loc.txt"),
+            scene_graph_file_path=scene_graph_file_path,
+            domain_file_path=domain_file_path,
+            results_dir=results_problem_dir,
+            domain_description=domain_description,
+        )
+        
+        (final_problem_file_path, final_plan_file_path, final_goal,
+            planning_successful, grounding_successful, task_possible,
+            possibility_explanation, n_relaxations, refinements_per_iteration,
+            goal_relaxations, domain_generation_time, problem_generation_time,
+            problem_refinement_time, goal_relaxation_time, total_llm_time,
+            failure_stage, failure_reason) = results
+        
+        # Save the final problem and plan if successful
+        plan_length = 0
+        if planning_successful and grounding_successful:
+            with open(final_problem_file_path, "r") as f:
+                save_file(f.read(), os.path.join(results_problem_dir, "problem_final.pddl"))
+
+            with open(final_plan_file_path, "r") as f:
+                final_generated_plan = f.read()
+                save_file(final_generated_plan, os.path.join(results_problem_dir, "plan_final.txt"))
+                plan_length = len(final_generated_plan.split(", "))
+
+        # Save the relaxed goal if any relaxations occurred
+        if n_relaxations > 0:
+            save_file(final_goal, os.path.join(results_problem_dir, "task_final.txt"))
+
+        # Format refinements and goal relaxations
+        refinements_per_iteration_str = ";".join(map(str, refinements_per_iteration))
+        goal_relaxations_str = "; ".join(
+            "'{}'".format(relax.strip().replace('\n', ' ').replace('\r', ''))
+            for relax in goal_relaxations
+        )
+
+        # Save results to the main CSV file
+        with open(csv_filepath, mode="a", newline='') as f:
+            writer = csv.writer(f, delimiter='|')
+            writer.writerow([
+                task_name, scene_name, problem_id, planning_successful, grounding_successful,
+                plan_length, n_relaxations, refinements_per_iteration_str,
+                goal_relaxations_str, domain_generation_time, problem_generation_time,
                 problem_refinement_time, goal_relaxation_time, total_llm_time,
-                failure_stage, failure_reason) = results
-            
-            # Save the final problem and plan if successful
-            plan_length = 0
-            if planning_successful and grounding_successful:
-                with open(final_problem_file_path, "r") as f:
-                    save_file(f.read(), os.path.join(results_problem_dir, "problem_final.pddl"))
+                failure_stage, failure_reason
+            ])
 
-                with open(final_plan_file_path, "r") as f:
-                    final_generated_plan = f.read()
-                    save_file(final_generated_plan, os.path.join(results_problem_dir, "plan_final.txt"))
-                    plan_length = len(final_generated_plan.split(", "))
-
-            # Save the relaxed goal if any relaxations occurred
-            if n_relaxations > 0:
-                save_file(final_goal, os.path.join(results_problem_dir, "task_final.txt"))
-
-            # Format refinements and goal relaxations
-            refinements_per_iteration_str = ";".join(map(str, refinements_per_iteration))
-            goal_relaxations_str = "; ".join(
-                "'{}'".format(relax.strip().replace('\n', ' ').replace('\r', ''))
-                for relax in goal_relaxations
-            )
-
-            # Save results to the main CSV file
-            with open(csv_filepath, mode="a", newline='') as f:
+        # Save the possibility result if enabled
+        if self.determine_possibility:
+            with open(os.path.join(self.results_dir, self.experiment_name, self.timestamp, "possibility.csv"), mode="a", newline='') as f:
                 writer = csv.writer(f, delimiter='|')
                 writer.writerow([
-                    task_name, scene_name, problem_id, planning_successful, grounding_successful,
-                    plan_length, n_relaxations, refinements_per_iteration_str,
-                    goal_relaxations_str, domain_generation_time, problem_generation_time,
-                    problem_refinement_time, goal_relaxation_time, total_llm_time,
-                    failure_stage, failure_reason
-                ])
-
-            # Save the possibility result if enabled
-            if self.determine_possibility:
-                with open(os.path.join(self.results_dir, self.experiment_name, self.timestamp, "possibility.csv"), mode="a", newline='') as f:
-                    writer = csv.writer(f, delimiter='|')
-                    writer.writerow([
-                        task_name, scene_name, problem_id, task_possible,
-                        possibility_explanation.strip().replace('\n', ' ').replace('\r', '')
-                    ])
-
-        except Exception as e:
-            exception_str = str(e).strip().replace('\n', ' ').replace('\r', '')
-
-            logger.warning(f"Encountered problem: {exception_str}")
-
-
-            # Log the exception in the main CSV file
-            with open(csv_filepath, mode="a", newline='') as f:
-                writer = csv.writer(f, delimiter='|')
-                writer.writerow([
-                    task_name, scene_name, problem_id, f"Exception: {exception_str}",
-                    "", "", "", "", "", "", "", "", "", "", "", ""
-                ])
-
-            # Log the possibility failure if enabled
-            if self.determine_possibility:
-                with open(os.path.join(self.results_dir, self.experiment_name, self.timestamp, "possibility.csv"), mode="a", newline='') as f:
-                    writer = csv.writer(f, delimiter='|')
-                    writer.writerow([task_name, scene_name, problem_id, False, f"Exception: {exception_str}"])
-
-            # Write the exception traceback to error.txt
-            error_log_path = os.path.join(results_problem_dir, "logs", "error.txt")
-            with open(error_log_path, "w") as error_log_file:
-                traceback.print_exc(file=error_log_file)
-
-            # Save exception details to statistics.json
-            save_statistics(
-                dir=results_problem_dir,
-                workflow_iteration=0,
-                phase=self.current_phase,
-                exception=e
-            )
-            
+                    task_name, scene_name, problem_id, task_possible,
+                    possibility_explanation.strip().replace('\n', ' ').replace('\r', '')
+                ])            
         return
     
     def _bidimensional_planning(self, **kwargs):
@@ -366,7 +330,7 @@ class ContextMattersPipeline(BasePipeline):
                     PDDL_loop_iteration += 1
                         
                     # Check new planning phase
-                    plan_file_path = os.path.join(problem_dir, f"plan_{PDDL_loop_iteration}.out")  # TODO adjust if needed
+                    plan_file_path = os.path.join(problem_dir, f"plan_{PDDL_loop_iteration}.out") 
                     planner_output_file_path = os.path.join(problem_dir, "logs", f"planner_output_{PDDL_loop_iteration}.log")
                         
                     # Attempt planning with refined problem
@@ -439,7 +403,11 @@ class ContextMattersPipeline(BasePipeline):
                     logger.info("Skipping grounding in the 3DSG")
                     grounding_successful = True
                     scene_graph_grounding_log = None
-                        
+
+            if self.workflow_iterations == 1:
+                logger.info("Only one workflow iteration configured, stopping workflow before relaxation")
+                break
+
             # If we achieved 100% grounding success, we can break the loop as we correctly achieved the original goal        
             if grounding_successful:
                 logger.info("Perfect grounding success, stopping workflow")
@@ -449,21 +417,17 @@ class ContextMattersPipeline(BasePipeline):
                 
                 # Goal relaxation
                 logger.info("Grounding not successful. Performing goal relaxation")
+                relaxation_start_time = time.time()
                 current_goal = dict_replaceable_objects(extracted_sg_str, 
                                                         current_goal,
                                                         self.agent,
                                                         iteration, logs_dir)
                 # Generate new goal
-                current_goal = relax_goal(extracted_sg_str, current_goal, agent=self.agent)
-                # Record relaxed goal
-                '''
-                relaxation_start_time = time.time()
-                current_goal = relax_goal_pipeline(extracted_sg_str, current_goal, self.agent, iteration, logs_dir)
+                current_goal = relax_goal(extracted_sg_str, current_goal, agent=self.agent, logs_dir=logs_dir)
                 goal_relaxation_time += time.time() - relaxation_start_time
+                
                 goals.append(current_goal)
-                # Prepare next iteration
                 iteration += 1
-                '''
         
         # Calculate total LLM time
         total_llm_time = domain_generation_time + problem_generation_time + problem_refinement_time + goal_relaxation_time
@@ -514,7 +478,7 @@ class ContextMattersPipeline(BasePipeline):
         Returns a tuple of (VAL_successful, VAL_validation_log, VAL_ground_successful, VAL_grounding_log).
         """
         # Translate the plan into a format parsable by VAL
-        translated_plan_path = os.path.join(problem_dir, f"translated_plan_{translation_suffix}.txt") # TODO DISCUSS THIS
+        translated_plan_path = os.path.join(problem_dir, f"translated_plan_{translation_suffix}.txt")
         translate_plan(plan_file_path, translated_plan_path)
         logger.info("Checking planning with VAL")
         VAL_successful, VAL_validation_log = VAL_validate(domain_file_path, problem_file_path, translated_plan_path)

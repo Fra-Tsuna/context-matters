@@ -1,7 +1,7 @@
 # Adaptation of the DELTA Pipeline from the official code repository.
-# Original paper: Y. Liu et al. TODO, TODO
-# Paper link: TODO
-# Based on the official code implementation by Y. Liu et al. TODO(link)
+# Original paper: Liu, Yuchen, et al. "Delta: Decomposed efficient long-term robot task planning using large language models." 2025 IEEE International Conference on Robotics and Automation (ICRA). IEEE, 2025.
+# Paper link: https://delta-llm.github.io/
+# Based on the official code implementation by Y. Liu et al. https://github.com/boschresearch/DELTA
 
 import csv
 import os
@@ -26,12 +26,9 @@ from src.context_matters.prompt.delta_prompts import (
     decompose_problem_chain
 )
 from src.context_matters.utils.graph import (
-    filter_graph,
     get_verbose_scene_graph,
     read_graph_from_path,
-    extract_accessible_items_from_sg,
     prune_sg_with_item,
-    prune_sg_with_item_OURS,
     save_graph
 )
 from src.context_matters.utils.log import (
@@ -61,8 +58,6 @@ from src.context_matters.utils.llm import (
 
 from pddlgym.core import PDDLEnv
 
-#TODO: save planner/grounder failure reasons in separate files
-
 class DeltaPipeline(BasePipeline):
     def __init__(self, 
                  max_time=60,
@@ -76,7 +71,6 @@ class DeltaPipeline(BasePipeline):
                  intermediate_validation=True,
                  use_extracted_sg=True,
                  whole_problem_planning=True,
-                 delta_plus=False,
                  **base_init_kwargs):
         super().__init__(**base_init_kwargs, generate_domain=generate_domain, ground_in_sg=ground_in_sg)
         self.max_time = max_time
@@ -92,7 +86,6 @@ class DeltaPipeline(BasePipeline):
         self.whole_problem_planning = whole_problem_planning
         self.experiment_name = super()._construct_experiment_name()
         self.current_phase = None  # Initialize current_phase attribute
-        self.delta_plus = delta_plus
 
 
     def _initialize_csv(self, csv_filepath):
@@ -117,12 +110,6 @@ class DeltaPipeline(BasePipeline):
         content_d, prompt_d = nl_2_pddl_domain(
             domain_example, domain_name, add_obj_example, add_obj_qry, add_act_example, add_act_qry)
 
-        print(content_d)
-        print(prompt_d)
-
-        #Part of TODO #5: this should be part of the statistics refactor
-        #print("Prompt tokens for domain generation: {}".format(
-        #    model.count_tokens(prompt_d)))
 
         self.agent.init_prompt_chain(content_d, prompt_d) #OK
 
@@ -158,18 +145,8 @@ class DeltaPipeline(BasePipeline):
         """
         items_example = scene_example
         items_qry = scene_qry
-
-        print(items_example)
-        print(items_qry)
         
         content_pr, prompt_pr = nl_prune_item(items_example, items_qry, goal_example, goal_qry, item_keep_exp, domain_example, domain_pddl)
-
-        print(content_pr)
-        print(prompt_pr)
-        
-        # Part of TODO #5: this should be part of the statistics refactor
-        #print("Prompt tokens for pruning scene graph: {}".format(
-        #    model.count_tokens(prompt_pr)))
 
         if chain_from_domain:
             self.agent.update_prompt_chain(content_pr, prompt_pr)
@@ -198,8 +175,8 @@ class DeltaPipeline(BasePipeline):
 
         self.agent.update_prompt_chain_with_response(pruned_sg) #OK
 
-        scene_example = prune_sg_with_item_OURS(scene_example, item_keep_exp, is_extracted_sg = self.use_extracted_sg)
-        pruned_sg = prune_sg_with_item_OURS(scene_qry, item_keep, is_extracted_sg=self.use_extracted_sg)
+        scene_example = prune_sg_with_item(scene_example, item_keep_exp, is_extracted_sg = self.use_extracted_sg)
+        pruned_sg = prune_sg_with_item(scene_qry, item_keep, is_extracted_sg=self.use_extracted_sg)
 
 
         print("PRUNED:\n"+str(pruned_sg))
@@ -215,16 +192,8 @@ class DeltaPipeline(BasePipeline):
 
         content_p, prompt_p = sg_2_pddl_problem(domain_example_name, domain_example, problem_example,
                                                 scene_example, scene_qry, goal_example,
-                                                goal_qry, domain_pddl, domain_name, initial_robot_location, delta_plus=self.delta_plus)
+                                                goal_qry, domain_pddl, domain_name, initial_robot_location)
         
-        print(content_p)
-        print(prompt_p)
-
-        # Part of TODO #5: statistics and logging refactor
-        #print("Prompt tokens for problem generation: {}".format(
-        #    model.count_tokens(prompt_p)))
-
-        # OK
         if chain_from_previous:
             self.agent.update_prompt_chain(content_p, prompt_p)
         else:
@@ -277,10 +246,6 @@ class DeltaPipeline(BasePipeline):
                 accumulate_subgoal)
             
             self.agent.init_prompt_chain(content_dp, prompt_dp) #OK
-
-        # Part of TODO #5: statistics and logging refactor
-        #print("Prompt tokens for problem decomposition: {}".format(
-        #    model.count_tokens(prompt_dp)))
 
         dp_start = time.time()
         
@@ -412,22 +377,7 @@ class DeltaPipeline(BasePipeline):
         planning_log_path = ""
         grounding_log_path = ""
 
-        # NOTICE: change this method if you want to load examples dinamically
         domain_example, scene_example, problem_example, domain_example_data = delta_example.load_example_data(delta_example.HARDCODED_DOMAIN_EXAMPLE_NAME)
-        # TODO #4: Consider whether to replace the hard-coded examples based on cm_pipeline.py with dynamic examples loading as in DELTA
-        #exp = example.get_example(domain_example)
-        #qry = example.get_example(domain_name)
-        #if scene_example not in exp["scene"]:
-        #    raise Exception("Scene example {} is not supported for domain example{}!".format(
-        #        scene_example, domain_example))
-        #if scene_name not in qry["scene"]:
-        #    raise Exception("Scene {} is not supported for domain {}!".format(
-        #        scene_name, domain_name))        
-        #if scene_name == scene_example:
-        #    raise ValueError(
-        #        "Scene graph example cannot be identical to scene graph query!")
-        #print("Using model {}".format(model_name))
-               
 
         d_time, pr_time, p_time, dp_time = 0., 0., 0., 0.
         start = time.time()
@@ -490,7 +440,6 @@ class DeltaPipeline(BasePipeline):
         if self.intermediate_validation:
             if not val_parse_success:
                 logger.error("Domain validation failed on {}: {}".format(domain_pddl_path, val_parse_log))
-                # return placeholders for the full expected tuple (26 elements with log paths)
                 return domain_pddl_path, None, None, None, False, False, None, "DOMAIN_GENERATION", val_parse_log, None, d_time, 0.0, 0.0, 0.0, d_time, [], [], [], None, 0.0, 0, 0, val_validation_log_path, "", "", ""
             else:
                 logger.info("Domain validation successful")
@@ -595,7 +544,6 @@ class DeltaPipeline(BasePipeline):
         if self.intermediate_validation:
             if not val_parse_success:
                 logger.info("Problem validation failed on {}: {}".format(problem_pddl_path, val_parse_log))
-                # Return placeholders for the full expected tuple (26 elements with log paths)
                 return domain_pddl_path, scene_qry, problem_pddl_path, None, False, False, None, "PROBLEM_GENERATION", val_parse_log, None, d_time, pr_time, p_time, 0.0, d_time + pr_time + p_time, [], [], [], None, 0.0, 0, 0, val_validation_log_path, "", "", ""
             else:
                 logger.info("Problem validation successful")
@@ -619,8 +567,6 @@ class DeltaPipeline(BasePipeline):
                 domain_example_data["goal"], domain_example_data["subgoal"], domain_example_data["subgoal_pddl"], domain_example_data["item_keep"],
                 goal_qry, problem_example, item_keep, problem_pddl, domain_pddl,
                 logs_dir, chain_from_previous, accumulate_subgoal)
-
-            print(subgoal_pddl_list)
             
             # Save problem decomposition statistics
             save_statistics(

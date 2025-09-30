@@ -11,3 +11,4 @@ numpy
 six
 omegaconf
 hydra-core
+ipdb
