@@ -83,6 +83,14 @@ python3 aggregate_results.py
 
 This will generate a detailed metrics JSON file inside the `metrics_res_path` specified in `config.yaml`.
 
+Some key performance metrics are:
+- `overall_success_rate`: The percentage of tasks successfully solved with a valid and executable plan
+- `grounding_success_rate`: The percentage of generated plans that were realistic and executable when checked against the environment
+- `avg_plan_length_successful`: The average number of steps in a successful plan, measuring its efficiency
+- `avg_no_nodes`: The average number of states explored by the planner, indicating its search effort
+- `avg_no_relaxations`: The average number of times the problem was simplified to find a high-level plan
+
+
 To plot and visualize the aggregated results, run:
 ```
 python3 generate_plots.py
