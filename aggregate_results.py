@@ -426,6 +426,5 @@ def main(cfg: DictConfig):
     calculator.save_results(metrics_results_dir)
     
 
-
 if __name__ == "__main__":
     main()
