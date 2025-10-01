@@ -12,7 +12,7 @@ from .base_pipeline import BasePipeline
 
 from src.context_matters.prompt.sayplan_prompts import (
     search_prompt,
-    plan_prompt, replan_prompt,
+    plan_prompt,
     export_search_cmd,
     get_situational_actions,
 )
@@ -23,7 +23,6 @@ from src.context_matters.utils.graph import (
     update_scene_graph,
 )
 from src.context_matters.utils.log import (
-    save_file, save_statistics,
     dump_sayplan_plan
 )
 
@@ -32,11 +31,11 @@ from src.context_matters.logger_cfg import logger
 
 class SayPlanPipeline(BasePipeline):
     def __init__(self, 
-                max_debug_attempts=4,
-                max_search_attempts=50,
+                max_debug_attempts = 4,
+                max_search_attempts = 50,
                 episodes = 5,
-                temperature=0.0,
-                top_p=1.0,
+                temperature = 0.0,
+                top_p = 1.0,
                  **base_init_kwargs
                 ):
         super().__init__(**base_init_kwargs)
@@ -114,7 +113,7 @@ class SayPlanPipeline(BasePipeline):
                     task_name, scene_name, problem_id, 
                     e, stats["exit_code"], stats["success"],
                     stats["replan_count"], stats["search_time"], stats["plan_time"],
-                    stats["plan_cost"], None #FIXME: GT Cost
+                    stats["plan_cost"], None
                 ])
 
         return
@@ -198,17 +197,7 @@ class SayPlanPipeline(BasePipeline):
                     logger.error(err_msg)
                     stats["exit_code"] = 7
                     continue
-                    
-                is_valid, val_info = True, None #TODO #14: plan validation
+
+                stats["success"] = True
                 
-                if is_valid:
-                    stats["success"] = True
-                    stats["exit_code"] = 1
-                # else:
-                #     feedback, stats["exit_code"] = planner.val_feedback() #TODO
-                #     content_rp, prompt_rp = replan_prompt()
-                    
-                    # content_rp, prompt_rp = replan_prompt()
-                    # self.model.update_prompt_chain(content_rp, prompt_rp)
-        
         return stats

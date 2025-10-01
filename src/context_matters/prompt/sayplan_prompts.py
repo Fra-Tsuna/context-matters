@@ -373,22 +373,3 @@ def plan_prompt(goal_qry, sg_qry, add_env_func_qry):
     """
     
     return content, prompt
-
-# def replan_prompt(err_info: str):
-#     content = "You are an excellent replanner. Given an error message, you can fix the previous plan to recover from the error."
-#     prompt = f"""
-#     Scene Graph Simulator (Feedback): {err_info}\n
-#     Fix the plan.
-#     """
-    
-#     return content, prompt
-
-def replan_prompt():
-    content = "You are an excellent replanner. If you reached this state it means that the previous plan failed to execute successfully."
-    prompt = f"""
-    Plan unsuccessfull. Fix the plan.
-    """
-    
-    return content, prompt
-
-# TODO think about states
